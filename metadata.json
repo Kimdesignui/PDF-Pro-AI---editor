@@ -1,0 +1,5 @@
+{
+  "name": "PDF Pro Editor",
+  "description": "A powerful web-based tool to edit and manipulate PDF files with professional features like rotating, splitting, compressing, adding passwords, signatures, images, performing OCR, and converting text to speech.",
+  "requestFramePermissions": []
+}
