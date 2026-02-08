@@ -1,5 +1,5 @@
 
-import type { Position } from '../types';
+import type { Position, PageEditState } from '../types';
 declare const window: any;
 
 export const mergePdfs = async (pdfBytesArray: ArrayBuffer[]): Promise<Uint8Array> => {
@@ -13,6 +13,7 @@ export const mergePdfs = async (pdfBytesArray: ArrayBuffer[]): Promise<Uint8Arra
     return await mergedPdf.save();
 };
 
+// Legacy function kept for compatibility if needed, but applyPageEdits is preferred for Rotate tool
 export const rotatePages = async (pdfBytes: ArrayBuffer, pageNumbers: number[], angle: number): Promise<Uint8Array> => {
     const { PDFDocument, degrees } = window.PDFLib;
     const pdfDoc = await PDFDocument.load(pdfBytes);
@@ -29,6 +30,40 @@ export const rotatePages = async (pdfBytes: ArrayBuffer, pageNumbers: number[], 
         page.setRotation(degrees(currentRotation + angle));
     });
     return await pdfDoc.save();
+};
+
+// NEW: Handles complex visual edits (per-page rotation + deletion)
+export const applyPageEdits = async (pdfBytes: ArrayBuffer, pageStates: PageEditState[]): Promise<Uint8Array> => {
+    const { PDFDocument, degrees } = window.PDFLib;
+    const pdfDoc = await PDFDocument.load(pdfBytes);
+    const newPdfDoc = await PDFDocument.create();
+    const sourcePages = pdfDoc.getPages();
+
+    // Copy pages one by one to respect order and deletion status
+    // Note: copyPages allows copying the same page multiple times or skipping
+    
+    // Filter out deleted pages
+    const activeStates = pageStates.filter(p => !p.isDeleted);
+    
+    // Get indices to copy (0-based)
+    const indicesToCopy = activeStates.map(p => p.pageNumber - 1);
+    
+    if (indicesToCopy.length === 0) {
+        throw new Error("Tất cả các trang đã bị xóa. Không thể tạo file PDF rỗng.");
+    }
+
+    const copiedPages = await newPdfDoc.copyPages(pdfDoc, indicesToCopy);
+
+    // Apply rotation to the copied pages
+    copiedPages.forEach((page: any, idx: number) => {
+        const state = activeStates[idx];
+        const currentRotation = page.getRotation().angle;
+        // Add the visual rotation to the existing rotation
+        page.setRotation(degrees(currentRotation + state.rotation));
+        newPdfDoc.addPage(page);
+    });
+
+    return await newPdfDoc.save();
 };
 
 export const splitPdfByPages = async (pdfBytes: ArrayBuffer, pageNumbers: number[]): Promise<Uint8Array> => {

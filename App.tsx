@@ -1,7 +1,7 @@
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { TOOLS } from './constants';
-import type { Tool, ProcessedFile } from './types';
+import type { Tool, ProcessedFile, PageEditState } from './types';
 import { FileUpload } from './components/FileUpload';
 import { PdfViewer } from './components/PdfViewer';
 import { ToolPanel } from './components/ToolPanel';
@@ -19,11 +19,28 @@ const App: React.FC = () => {
     const [files, setFiles] = useState<File[]>([]);
     const [pdfDoc, setPdfDoc] = useState<any>(null);
     const [selectedPages, setSelectedPages] = useState<Set<number>>(new Set());
+    const [pageStates, setPageStates] = useState<PageEditState[]>([]); // New: Track visual state per page
     const [isProcessing, setIsProcessing] = useState(false);
     const [results, setResults] = useState<ProcessedFile[]>([]);
     const [currentResult, setCurrentResult] = useState<ProcessedFile | null>(null);
     const [loadingMsg, setLoadingMsg] = useState('');
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
+    // Initializer for Page States
+    useEffect(() => {
+        if (pdfDoc) {
+            const numPages = pdfDoc.numPages;
+            const initialStates: PageEditState[] = [];
+            for (let i = 1; i <= numPages; i++) {
+                initialStates.push({ pageNumber: i, rotation: 0, isDeleted: false });
+            }
+            setPageStates(initialStates);
+            // Auto-select all if it's rotate tool? Or none? Let's start with none.
+            setSelectedPages(new Set()); 
+        } else {
+            setPageStates([]);
+        }
+    }, [pdfDoc]);
 
     // Handlers
     const loadPdf = async (file: File) => {
@@ -40,16 +57,15 @@ const App: React.FC = () => {
     const handleToolSelect = (tool: Tool) => {
         setActiveTool(tool);
         
-        // If we have files, check if we need to load the doc (in case it wasn't loaded)
-        // and switch to workspace.
+        // If we have files, check if we need to load the doc
         if (files.length > 0) {
             if (!pdfDoc) {
-                // Try to load the first file
                 loadPdf(files[0]);
             }
             setView('workspace');
         } else {
-            setView('home'); // Stay home, show upload (or logic could be to scroll to hero)
+            // Workflow: Tool -> Home (but scroll up) to upload
+            setView('home'); 
             window.scrollTo({ top: 0, behavior: 'smooth' });
         }
     };
@@ -63,7 +79,7 @@ const App: React.FC = () => {
             await loadPdf(uploadedFiles[0]);
         }
         
-        // If a tool is already active, go to workspace immediately
+        // Workflow: If tool active, go to workspace immediately
         if (activeTool) {
             setView('workspace');
         }
@@ -74,15 +90,56 @@ const App: React.FC = () => {
         setFiles(newFiles);
         if (newFiles.length === 0) {
             setPdfDoc(null);
-            // If in workspace, maybe go back to home?
             if (view === 'workspace' && activeTool?.id !== 'merge') { 
                 setView('home');
             }
         } else if (index === 0 && newFiles.length > 0) {
-            // If removed first file, load next one as preview
             loadPdf(newFiles[0]);
         }
     };
+
+    // --- NEW: Visual Edit Handlers ---
+    
+    // Rotate specific page (Instant Feedback)
+    const handleRotatePage = (pageNumber: number, direction: 'left' | 'right') => {
+        const delta = direction === 'left' ? -90 : 90;
+        setPageStates(prev => prev.map(p => {
+            if (p.pageNumber === pageNumber) {
+                return { ...p, rotation: p.rotation + delta };
+            }
+            return p;
+        }));
+    };
+
+    // Mark page as deleted
+    const handleDeletePage = (pageNumber: number) => {
+        setPageStates(prev => prev.map(p => {
+            if (p.pageNumber === pageNumber) {
+                return { ...p, isDeleted: true };
+            }
+            return p;
+        }));
+        // Remove from selection if deleted
+        if (selectedPages.has(pageNumber)) {
+            const newSet = new Set(selectedPages);
+            newSet.delete(pageNumber);
+            setSelectedPages(newSet);
+        }
+    };
+
+    // Handler called by ToolPanel buttons (e.g., Rotate All/Selected Left)
+    const handleBulkRotate = (angle: number) => {
+        setPageStates(prev => prev.map(p => {
+            // If pages are selected, rotate only those. If none selected, rotate ALL (user convenience)
+            const shouldRotate = selectedPages.size === 0 || selectedPages.has(p.pageNumber);
+            if (shouldRotate && !p.isDeleted) {
+                return { ...p, rotation: p.rotation + angle };
+            }
+            return p;
+        }));
+    };
+
+    // --- End Visual Edit Handlers ---
 
     // Storage Handlers
     const handleDeleteResult = (id: number) => {
@@ -105,11 +162,15 @@ const App: React.FC = () => {
         loadPdf(file);
         setView('home');
         setActiveTool(null);
-        // Scroll to tools
         setTimeout(() => {
              const toolsSection = document.getElementById('tools');
              if (toolsSection) toolsSection.scrollIntoView({ behavior: 'smooth' });
         }, 100);
+    };
+
+    const handleViewResult = (result: ProcessedFile) => {
+        const url = URL.createObjectURL(result.blob);
+        window.open(url, '_blank');
     };
 
     const handleApplyTool = async (options: any) => {
@@ -123,13 +184,18 @@ const App: React.FC = () => {
             let resultBlob: Blob | null = null;
             let filename = `processed_${files[0].name}`;
 
-            // Resolve target pages: if specific pages selected, use them. If not, implies ALL pages for tools like Rotate
             const targetPages = selectedPages.size > 0 ? Array.from(selectedPages) as number[] : [];
 
             switch (activeTool.id) {
                 case 'rotate':
-                    output = await pdfService.rotatePages(buffer, targetPages, options.angle || 90);
+                    // NEW: Use the visual page states for processing
+                    // Check if any state changes exist
+                    const hasChanges = pageStates.some(p => p.rotation !== 0 || p.isDeleted);
+                    if (!hasChanges) throw new Error("Bạn chưa thực hiện thay đổi nào (Xoay/Xóa).");
+                    
+                    output = await pdfService.applyPageEdits(buffer, pageStates);
                     break;
+
                 case 'split':
                     if (options.mode === 'split-selected') {
                         if (targetPages.length === 0) throw new Error("Vui lòng chọn trang để tách.");
@@ -580,21 +646,28 @@ const App: React.FC = () => {
                                      <PdfViewer 
                                         pdfDoc={pdfDoc} 
                                         selectedPages={selectedPages} 
+                                        pageStates={pageStates}
                                         onPageSelect={togglePage}
                                         toggleSelectAll={() => {
                                             if (!pdfDoc) return;
                                             if (selectedPages.size === pdfDoc.numPages) setSelectedPages(new Set());
                                             else setSelectedPages(new Set(Array.from({length: pdfDoc.numPages}, (_, i) => i + 1)));
                                         }}
+                                        onRotatePage={handleRotatePage}
+                                        onDeletePage={handleDeletePage}
+                                        // Enable visual controls specifically for rotate tool
+                                        enableVisualEdit={activeTool.id === 'rotate'}
                                      />
                                  )
                              )}
                         </div>
                         <ToolPanel 
                             tool={activeTool} 
-                            onApply={handleApplyTool} 
+                            onApply={activeTool.id === 'rotate' ? () => handleApplyTool({}) : handleApplyTool} 
                             onCancel={() => { setView('home'); setFiles([]); setPdfDoc(null); }} 
                             isProcessing={isProcessing}
+                            // Pass bulk rotate function for the tool panel buttons
+                            onBulkRotate={handleBulkRotate}
                         />
                     </div>
                 )}
@@ -701,6 +774,13 @@ const App: React.FC = () => {
                                                         <td className="p-5">
                                                             <div className="flex justify-end items-center gap-2">
                                                                 <button 
+                                                                    onClick={() => handleViewResult(f)}
+                                                                    title="Xem"
+                                                                    className="p-2 text-gray-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition"
+                                                                >
+                                                                    <Icon type="eye" className="w-5 h-5" />
+                                                                </button>
+                                                                <button 
                                                                     onClick={() => handleContinueResult(f)}
                                                                     title="Chỉnh sửa tiếp"
                                                                     className="p-2 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition"
@@ -712,7 +792,7 @@ const App: React.FC = () => {
                                                                     title="Đổi tên"
                                                                     className="p-2 text-gray-500 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition"
                                                                 >
-                                                                    <Icon type="file" className="w-5 h-5" /> {/* Using file icon as proxy for edit name */}
+                                                                    <Icon type="file" className="w-5 h-5" />
                                                                 </button>
                                                                 <a 
                                                                     href={URL.createObjectURL(f.blob)} 

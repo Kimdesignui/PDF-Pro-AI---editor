@@ -1,3 +1,4 @@
+
 import React, { useRef, useState } from 'react';
 import type { Tool } from '../types';
 import { LANGUAGES } from '../constants';
@@ -10,9 +11,10 @@ interface ToolPanelProps {
     onApply: (options: any) => void;
     onCancel: () => void;
     isProcessing: boolean;
+    onBulkRotate?: (angle: number) => void; // New prop for visual feedback
 }
 
-export const ToolPanel: React.FC<ToolPanelProps> = ({ tool, onApply, onCancel, isProcessing }) => {
+export const ToolPanel: React.FC<ToolPanelProps> = ({ tool, onApply, onCancel, isProcessing, onBulkRotate }) => {
     const [options, setOptions] = useState<any>({});
     const sigRef = useRef<SignaturePadRef>(null);
 
@@ -45,18 +47,29 @@ export const ToolPanel: React.FC<ToolPanelProps> = ({ tool, onApply, onCancel, i
                 <p className="text-sm text-gray-500">{tool.description}</p>
                 
                 {tool.id === 'rotate' && (
-                    <div className="space-y-3">
-                        <label className="text-sm font-medium text-gray-700">Góc xoay</label>
-                        <div className="grid grid-cols-3 gap-2">
-                            {[90, 180, 270].map(deg => (
-                                <button key={deg} 
-                                    onClick={() => setOptions({ ...options, angle: deg })}
-                                    className={`py-2 text-sm rounded border ${options.angle === deg ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-700 hover:bg-gray-50'}`}
+                    <div className="space-y-4">
+                        <div className="bg-blue-50 p-4 rounded-lg border border-blue-100">
+                            <p className="text-sm text-blue-800 font-medium mb-2">Thao tác nhanh</p>
+                            <div className="grid grid-cols-2 gap-3">
+                                <button 
+                                    onClick={() => onBulkRotate && onBulkRotate(-90)}
+                                    className="flex flex-col items-center justify-center p-3 bg-white border border-blue-200 rounded-lg hover:bg-blue-100 text-blue-700 transition"
                                 >
-                                    {deg}°
+                                    <Icon type="rotate-left" className="w-6 h-6 mb-1" />
+                                    <span className="text-xs font-semibold">Trái 90°</span>
                                 </button>
-                            ))}
+                                <button 
+                                    onClick={() => onBulkRotate && onBulkRotate(90)}
+                                    className="flex flex-col items-center justify-center p-3 bg-white border border-blue-200 rounded-lg hover:bg-blue-100 text-blue-700 transition"
+                                >
+                                    <Icon type="rotate-right" className="w-6 h-6 mb-1" />
+                                    <span className="text-xs font-semibold">Phải 90°</span>
+                                </button>
+                            </div>
                         </div>
+                        <p className="text-xs text-gray-500 mt-2">
+                            Mẹo: Bạn có thể chọn nhiều trang rồi xoay cùng lúc, hoặc xoay từng trang trực tiếp ở màn hình bên trái.
+                        </p>
                     </div>
                 )}
 

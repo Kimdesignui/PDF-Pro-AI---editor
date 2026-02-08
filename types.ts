@@ -30,3 +30,9 @@ export interface Position {
   width: number;
   height: number;
 }
+
+export interface PageEditState {
+  pageNumber: number; // 1-based index
+  rotation: number;   // 0, 90, 180, 270 (cumulative)
+  isDeleted: boolean;
+}
