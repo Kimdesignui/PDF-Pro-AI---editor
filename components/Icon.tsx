@@ -36,9 +36,14 @@ const ICONS: Record<IconType, React.ReactNode> = {
 };
 
 export const Icon: React.FC<{ type: IconType; className?: string }> = ({ type, className = "w-6 h-6" }) => {
+    // Safety check: if type is undefined or invalid, fallback to 'file' to prevent crashes
+    const iconContent = (type && ICONS[type]) ? ICONS[type] : ICONS.file;
+    
     return (
         <svg xmlns="http://www.w3.org/2000/svg" className={className} fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-            {ICONS[type] || ICONS.file}
+            {iconContent}
         </svg>
     );
 };
+
+export default Icon;
