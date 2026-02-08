@@ -4,7 +4,7 @@ import type { ReactElement } from 'react';
 export interface Tool {
   id: string;
   name: string;
-  icon: ReactElement<any>; // Allow cloning
+  icon: ReactElement<any>;
   description: string;
   color: string;
   subTools?: SubTool[];
@@ -31,9 +31,9 @@ export interface Position {
   height: number;
 }
 
-// Interface mới để quản lý trạng thái hình ảnh của từng trang
 export interface PageEditState {
-  pageNumber: number; // 1-based index
-  rotation: number;   // 0, 90, 180, 270... (cộng dồn)
+  id: string; // Unique ID for drag and drop key
+  originalPageNumber: number; // 1-based index from original doc
+  rotation: number;   // 0, 90, 180, 270...
   isDeleted: boolean;
 }

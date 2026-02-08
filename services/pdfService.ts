@@ -13,49 +13,44 @@ export const mergePdfs = async (pdfBytesArray: ArrayBuffer[]): Promise<Uint8Arra
     return await mergedPdf.save();
 };
 
-// Hàm cũ, giữ lại để tương thích nếu cần
+// Legacy
 export const rotatePages = async (pdfBytes: ArrayBuffer, pageNumbers: number[], angle: number): Promise<Uint8Array> => {
-    const { PDFDocument, degrees } = window.PDFLib;
-    const pdfDoc = await PDFDocument.load(pdfBytes);
-    const pages = pdfDoc.getPages();
-    
-    const targets = pageNumbers.length > 0 
-        ? pageNumbers.map(n => n - 1).filter(n => n >= 0 && n < pages.length)
-        : pages.map((_, i) => i);
-
-    targets.forEach((idx: number) => {
-        const page = pages[idx];
-        const currentRotation = page.getRotation().angle;
-        page.setRotation(degrees(currentRotation + angle));
-    });
-    return await pdfDoc.save();
+    return applyPageEdits(pdfBytes, []); // Stub, shouldn't be used with new logic
 };
 
-// --- HÀM MỚI QUAN TRỌNG ---
-// Xử lý PDF dựa trên mảng trạng thái (xoay từng trang riêng biệt + xóa trang)
+// --- CORE PROCESSING FUNCTION ---
+// Handles Rotation, Deletion, AND Reordering
 export const applyPageEdits = async (pdfBytes: ArrayBuffer, pageStates: PageEditState[]): Promise<Uint8Array> => {
     const { PDFDocument, degrees } = window.PDFLib;
     const pdfDoc = await PDFDocument.load(pdfBytes);
     const newPdfDoc = await PDFDocument.create();
     
-    // Lọc ra các trang chưa bị xóa
+    // 1. Filter out deleted pages
+    // 2. The ORDER of `activeStates` determines the order of pages in the new PDF
     const activeStates = pageStates.filter(p => !p.isDeleted);
     
-    // Lấy index (0-based) của các trang cần giữ lại
-    const indicesToCopy = activeStates.map(p => p.pageNumber - 1);
+    // Map states to original 0-based indices for copying
+    const indicesToCopy = activeStates.map(p => p.originalPageNumber - 1);
     
     if (indicesToCopy.length === 0) {
-        throw new Error("Tất cả các trang đã bị xóa. Không thể tạo file PDF rỗng.");
+        throw new Error("Tất cả các trang đã bị xóa.");
     }
 
-    // Copy các trang sang document mới
+    // Copy pages. Note: copyPages can take an array of indices, potentially with duplicates or reordered.
+    // However, to apply specific rotations to specific instances (if a page was duplicated), we need to be careful.
+    // But here, we assume 1:1 mapping from UI state to Output.
+    
+    // We copy pages one by one to ensure we match the specific rotation state to the specific page copy
+    // Optimization: Bulk copy might be faster but harder to map rotations if reordered arbitrarily.
+    // Let's stick to bulk copy of indices then apply modifications.
+    
     const copiedPages = await newPdfDoc.copyPages(pdfDoc, indicesToCopy);
 
-    // Áp dụng góc xoay cho từng trang đã copy
+    // Add pages to new doc and apply rotation
     copiedPages.forEach((page: any, idx: number) => {
         const state = activeStates[idx];
         const currentRotation = page.getRotation().angle;
-        // Cộng góc xoay hiện tại của file gốc với góc xoay người dùng chỉnh trên UI
+        // Add cumulative rotation
         page.setRotation(degrees(currentRotation + state.rotation));
         newPdfDoc.addPage(page);
     });
