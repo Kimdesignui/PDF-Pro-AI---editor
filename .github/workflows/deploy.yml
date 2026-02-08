@@ -1,0 +1,46 @@
+name: Deploy Vite App
+
+on:
+  push:
+    branches: ["main"] # Đảm bảo tên nhánh đúng là main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci # Lệnh cài đặt thư viện sạch sẽ
+
+      - name: Build project
+        run: npm run build # Đây là bước "Phiên dịch" từ TSX sang JS
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: './dist' # Vite luôn xuất file dịch ra thư mục 'dist'
+
+      - name: Deploy to GitHub Pages
+        uses: actions/deploy-pages@v4
+
