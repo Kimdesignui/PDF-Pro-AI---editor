@@ -75,20 +75,20 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onToolSelect, onViewFi
                         Xử lý mọi tác vụ PDF của bạn: Chỉnh sửa, Ký tên, OCR và hơn thế nữa. <br className="hidden md:block"/> Nhanh chóng, Bảo mật và Miễn phí.
                     </p>
                     
-                    {/* Call to Action Button */}
+                    {/* Call to Action Buttons - Equal Widths */}
                     <div className="flex flex-col sm:flex-row justify-center gap-4">
                         <button 
                             onClick={scrollToTools}
                             className="w-full sm:w-64 group relative px-8 py-4 bg-brand-600 hover:bg-brand-700 text-white text-lg font-bold rounded-2xl shadow-xl shadow-brand-500/30 transition-all transform hover:-translate-y-1 hover:scale-105 flex justify-center items-center"
                         >
-                            <span className="flex items-center gap-2">
+                            <span className="flex items-center gap-2 whitespace-nowrap">
                                 Thử ngay miễn phí
                                 <Icon type="arrow-left" className="w-5 h-5 rotate-180 transition-transform group-hover:translate-x-1" />
                             </span>
                         </button>
                          <button 
                             onClick={onViewGuide}
-                            className="w-full sm:w-64 px-8 py-4 bg-white hover:bg-gray-50 text-gray-700 border border-gray-200 hover:border-gray-300 text-lg font-bold rounded-2xl shadow-sm transition-all transform hover:-translate-y-1 flex justify-center items-center"
+                            className="w-full sm:w-64 px-8 py-4 bg-white hover:bg-gray-50 text-gray-700 border border-gray-200 hover:border-gray-300 text-lg font-bold rounded-2xl shadow-sm transition-all transform hover:-translate-y-1 flex justify-center items-center whitespace-nowrap"
                         >
                             Xem hướng dẫn
                         </button>
