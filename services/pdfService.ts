@@ -13,13 +13,12 @@ export const mergePdfs = async (pdfBytesArray: ArrayBuffer[]): Promise<Uint8Arra
     return await mergedPdf.save();
 };
 
-// Legacy function kept for compatibility if needed, but applyPageEdits is preferred for Rotate tool
+// Hàm cũ, giữ lại để tương thích nếu cần
 export const rotatePages = async (pdfBytes: ArrayBuffer, pageNumbers: number[], angle: number): Promise<Uint8Array> => {
     const { PDFDocument, degrees } = window.PDFLib;
     const pdfDoc = await PDFDocument.load(pdfBytes);
     const pages = pdfDoc.getPages();
     
-    // If no specific pages selected, rotate all
     const targets = pageNumbers.length > 0 
         ? pageNumbers.map(n => n - 1).filter(n => n >= 0 && n < pages.length)
         : pages.map((_, i) => i);
@@ -32,33 +31,31 @@ export const rotatePages = async (pdfBytes: ArrayBuffer, pageNumbers: number[], 
     return await pdfDoc.save();
 };
 
-// NEW: Handles complex visual edits (per-page rotation + deletion)
+// --- HÀM MỚI QUAN TRỌNG ---
+// Xử lý PDF dựa trên mảng trạng thái (xoay từng trang riêng biệt + xóa trang)
 export const applyPageEdits = async (pdfBytes: ArrayBuffer, pageStates: PageEditState[]): Promise<Uint8Array> => {
     const { PDFDocument, degrees } = window.PDFLib;
     const pdfDoc = await PDFDocument.load(pdfBytes);
     const newPdfDoc = await PDFDocument.create();
-    const sourcePages = pdfDoc.getPages();
-
-    // Copy pages one by one to respect order and deletion status
-    // Note: copyPages allows copying the same page multiple times or skipping
     
-    // Filter out deleted pages
+    // Lọc ra các trang chưa bị xóa
     const activeStates = pageStates.filter(p => !p.isDeleted);
     
-    // Get indices to copy (0-based)
+    // Lấy index (0-based) của các trang cần giữ lại
     const indicesToCopy = activeStates.map(p => p.pageNumber - 1);
     
     if (indicesToCopy.length === 0) {
         throw new Error("Tất cả các trang đã bị xóa. Không thể tạo file PDF rỗng.");
     }
 
+    // Copy các trang sang document mới
     const copiedPages = await newPdfDoc.copyPages(pdfDoc, indicesToCopy);
 
-    // Apply rotation to the copied pages
+    // Áp dụng góc xoay cho từng trang đã copy
     copiedPages.forEach((page: any, idx: number) => {
         const state = activeStates[idx];
         const currentRotation = page.getRotation().angle;
-        // Add the visual rotation to the existing rotation
+        // Cộng góc xoay hiện tại của file gốc với góc xoay người dùng chỉnh trên UI
         page.setRotation(degrees(currentRotation + state.rotation));
         newPdfDoc.addPage(page);
     });
@@ -79,7 +76,6 @@ export const splitPdfByPages = async (pdfBytes: ArrayBuffer, pageNumbers: number
 export const setPassword = async (pdfBytes: ArrayBuffer, password: string): Promise<Uint8Array> => {
     const { PDFDocument } = window.PDFLib;
     const pdfDoc = await PDFDocument.load(pdfBytes);
-    // pdf-lib standard encryption
     return await pdfDoc.save({ userPassword: password, ownerPassword: password });
 };
 
@@ -108,7 +104,6 @@ export const addImage = async (pdfBytes: ArrayBuffer, pageNumber: number, imageB
     const page = pdfDoc.getPage(pageNumber - 1);
     
     let image;
-    // Simple MIME check by try/catch or header could be better, but assuming valid input for now
     try {
         image = await pdfDoc.embedPng(imageBytes);
     } catch {
@@ -116,7 +111,6 @@ export const addImage = async (pdfBytes: ArrayBuffer, pageNumber: number, imageB
     }
 
     const { width, height } = image.scale(0.5);
-    // Center image
     page.drawImage(image, {
         x: (page.getWidth() - width) / 2,
         y: (page.getHeight() - height) / 2,
@@ -137,5 +131,5 @@ export const getPageAsImage = async (pdfDoc: any, pageNumber: number): Promise<s
     canvas.height = viewport.height;
     
     await page.render({ canvasContext: context, viewport }).promise;
-    return canvas.toDataURL('image/jpeg', 0.8).split(',')[1]; // Return base64 body
+    return canvas.toDataURL('image/jpeg', 0.8).split(',')[1];
 };

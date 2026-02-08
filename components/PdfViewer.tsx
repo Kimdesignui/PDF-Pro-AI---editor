@@ -56,7 +56,7 @@ export const PdfViewer: React.FC<PdfViewerProps> = ({
                         const pageNum = idx + 1;
                         const state = pageStates.find(p => p.pageNumber === pageNum);
                         
-                        // Skip rendering if deleted (or render as placeholder if preferred, but user requested 'Delete' so likely hide)
+                        // Nếu trang đã bị xóa trong state, không render (hoặc có thể render placeholder)
                         if (state?.isDeleted) return null;
 
                         return (
@@ -141,7 +141,7 @@ const PageCard: React.FC<PageCardProps> = ({
                 Trang {pageNumber}
             </div>
 
-            {/* The visual container that actually rotates */}
+            {/* Container chứa Canvas - Nơi áp dụng transform rotate */}
             <div 
                 ref={containerRef}
                 className={`
@@ -149,20 +149,18 @@ const PageCard: React.FC<PageCardProps> = ({
                     ${isSelected ? 'border-brand-500 ring-2 ring-brand-200' : 'border-transparent hover:border-gray-300'}
                 `}
                 style={{
-                    // Instant Visual Feedback Logic
+                    // Logic Phản hồi tức thì: Xoay bằng CSS
                     transform: `rotate(${rotation}deg)`,
                     transition: 'transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)' 
                 }}
             >
                 <canvas ref={canvasRef} className="block w-full h-auto" />
                 
-                {/* Selection Overlay (If selected) */}
+                {/* Selection Overlay */}
                 <div className={`absolute inset-0 bg-brand-500/10 transition-opacity duration-200 ${isSelected ? 'opacity-100' : 'opacity-0'}`} />
             </div>
 
-            {/* Controls Overlay (Bottom of card) - Only shown if visual edit is enabled or always for consistency? 
-                User requested "controls on each card". Let's show them on hover or always if active tool.
-            */}
+            {/* Controls Overlay (Nổi lên khi hover hoặc nếu đang ở chế độ chỉnh sửa) */}
             {enableControls && (
                 <div className="absolute -bottom-4 left-1/2 -translate-x-1/2 translate-y-2 opacity-0 group-hover:opacity-100 group-hover:translate-y-0 transition-all duration-200 z-20 flex items-center gap-1 bg-white shadow-lg border border-gray-100 rounded-full p-1.5">
                     <button onClick={onRotateLeft} className="p-1.5 text-gray-600 hover:text-brand-600 hover:bg-brand-50 rounded-full transition" title="Xoay trái">
@@ -181,7 +179,7 @@ const PageCard: React.FC<PageCardProps> = ({
                 </div>
             )}
 
-            {/* Selection Checkbox (Top Right) */}
+            {/* Checkbox chọn */}
             <div className={`absolute top-6 right-2 z-20 transition-all duration-200 ${isSelected ? 'scale-100 opacity-100' : 'scale-90 opacity-0 group-hover:opacity-100'}`}>
                 <div className={`w-6 h-6 rounded-full flex items-center justify-center border shadow-sm ${isSelected ? 'bg-brand-600 border-brand-600 text-white' : 'bg-white border-gray-300 hover:border-brand-400'}`}>
                     <Icon type="check" className="w-3.5 h-3.5" />

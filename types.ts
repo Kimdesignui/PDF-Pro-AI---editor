@@ -31,8 +31,9 @@ export interface Position {
   height: number;
 }
 
+// Interface mới để quản lý trạng thái hình ảnh của từng trang
 export interface PageEditState {
   pageNumber: number; // 1-based index
-  rotation: number;   // 0, 90, 180, 270 (cumulative)
+  rotation: number;   // 0, 90, 180, 270... (cộng dồn)
   isDeleted: boolean;
 }

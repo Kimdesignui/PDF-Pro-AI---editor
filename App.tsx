@@ -35,7 +35,7 @@ const App: React.FC = () => {
                 initialStates.push({ pageNumber: i, rotation: 0, isDeleted: false });
             }
             setPageStates(initialStates);
-            // Auto-select all if it's rotate tool? Or none? Let's start with none.
+            // Reset selection when loading new doc
             setSelectedPages(new Set()); 
         } else {
             setPageStates([]);
@@ -100,7 +100,7 @@ const App: React.FC = () => {
 
     // --- NEW: Visual Edit Handlers ---
     
-    // Rotate specific page (Instant Feedback)
+    // Xoay trang cụ thể (Instant Feedback)
     const handleRotatePage = (pageNumber: number, direction: 'left' | 'right') => {
         const delta = direction === 'left' ? -90 : 90;
         setPageStates(prev => prev.map(p => {
@@ -111,7 +111,7 @@ const App: React.FC = () => {
         }));
     };
 
-    // Mark page as deleted
+    // Đánh dấu trang là đã xóa
     const handleDeletePage = (pageNumber: number) => {
         setPageStates(prev => prev.map(p => {
             if (p.pageNumber === pageNumber) {
@@ -130,7 +130,7 @@ const App: React.FC = () => {
     // Handler called by ToolPanel buttons (e.g., Rotate All/Selected Left)
     const handleBulkRotate = (angle: number) => {
         setPageStates(prev => prev.map(p => {
-            // If pages are selected, rotate only those. If none selected, rotate ALL (user convenience)
+            // Nếu có trang được chọn, chỉ xoay trang đó. Nếu không, xoay tất cả (tiện ích cho người dùng)
             const shouldRotate = selectedPages.size === 0 || selectedPages.has(p.pageNumber);
             if (shouldRotate && !p.isDeleted) {
                 return { ...p, rotation: p.rotation + angle };
@@ -189,7 +189,6 @@ const App: React.FC = () => {
             switch (activeTool.id) {
                 case 'rotate':
                     // NEW: Use the visual page states for processing
-                    // Check if any state changes exist
                     const hasChanges = pageStates.some(p => p.rotation !== 0 || p.isDeleted);
                     if (!hasChanges) throw new Error("Bạn chưa thực hiện thay đổi nào (Xoay/Xóa).");
                     
