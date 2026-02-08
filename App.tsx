@@ -14,13 +14,14 @@ import { arrayBufferToBlob, fileToArrayBuffer, decode, decodeAudioData } from '.
 // Main App Component
 const App: React.FC = () => {
     // State
-    const [view, setView] = useState<'home' | 'workspace' | 'result'>('home');
+    const [view, setView] = useState<'home' | 'workspace' | 'result' | 'success'>('home');
     const [activeTool, setActiveTool] = useState<Tool | null>(null);
     const [files, setFiles] = useState<File[]>([]);
     const [pdfDoc, setPdfDoc] = useState<any>(null);
     const [selectedPages, setSelectedPages] = useState<Set<number>>(new Set());
     const [isProcessing, setIsProcessing] = useState(false);
     const [results, setResults] = useState<ProcessedFile[]>([]);
+    const [currentResult, setCurrentResult] = useState<ProcessedFile | null>(null);
     const [loadingMsg, setLoadingMsg] = useState('');
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
@@ -49,11 +50,7 @@ const App: React.FC = () => {
             setView('workspace');
         } else {
             setView('home'); // Stay home, show upload (or logic could be to scroll to hero)
-            // But if clicked from grid, user expects to start. 
-            // Since we are on home, we just set activeTool. 
-            // If they upload now, it goes to workspace.
-            // Let's scroll to hero if no files
-             window.scrollTo({ top: 0, behavior: 'smooth' });
+            window.scrollTo({ top: 0, behavior: 'smooth' });
         }
     };
 
@@ -87,6 +84,34 @@ const App: React.FC = () => {
         }
     };
 
+    // Storage Handlers
+    const handleDeleteResult = (id: number) => {
+        if (window.confirm("Bạn có chắc muốn xóa tệp này không?")) {
+            setResults(results.filter(r => r.id !== id));
+            if (currentResult?.id === id) setCurrentResult(null);
+        }
+    };
+
+    const handleRenameResult = (id: number, currentName: string) => {
+        const newName = prompt("Nhập tên mới:", currentName);
+        if (newName && newName.trim() !== "") {
+            setResults(results.map(r => r.id === id ? { ...r, name: newName.trim() } : r));
+        }
+    };
+
+    const handleContinueResult = (result: ProcessedFile) => {
+        const file = new File([result.blob], result.name, { type: 'application/pdf' });
+        setFiles([file]);
+        loadPdf(file);
+        setView('home');
+        setActiveTool(null);
+        // Scroll to tools
+        setTimeout(() => {
+             const toolsSection = document.getElementById('tools');
+             if (toolsSection) toolsSection.scrollIntoView({ behavior: 'smooth' });
+        }, 100);
+    };
+
     const handleApplyTool = async (options: any) => {
         if (!activeTool || files.length === 0) return;
         setIsProcessing(true);
@@ -99,7 +124,7 @@ const App: React.FC = () => {
             let filename = `processed_${files[0].name}`;
 
             // Resolve target pages: if specific pages selected, use them. If not, implies ALL pages for tools like Rotate
-            const targetPages = selectedPages.size > 0 ? Array.from(selectedPages) : [];
+            const targetPages = selectedPages.size > 0 ? Array.from(selectedPages) as number[] : [];
 
             switch (activeTool.id) {
                 case 'rotate':
@@ -184,7 +209,8 @@ const App: React.FC = () => {
                     timestamp: new Date()
                 };
                 setResults([newFile, ...results]);
-                setView('result');
+                setCurrentResult(newFile);
+                setView('success');
             }
 
         } catch (e: any) {
@@ -221,10 +247,11 @@ const App: React.FC = () => {
                         ))}
                     </div>
                     <div className="hidden md:flex items-center space-x-4">
-                        <button className="text-gray-900 hover:text-brand-600 font-medium">Đăng nhập</button>
-                        <a href="#tools" className="bg-brand-600 hover:bg-brand-700 text-white px-5 py-2.5 rounded-lg font-semibold transition shadow-lg shadow-brand-500/30">
-                            Dùng ngay
-                        </a>
+                        <button onClick={() => setView('result')} className="group flex items-center gap-2 bg-gradient-to-r from-brand-600 to-brand-500 hover:from-brand-700 hover:to-brand-600 text-white px-6 py-2.5 rounded-full font-bold shadow-lg shadow-brand-500/30 transition-all transform hover:-translate-y-0.5">
+                             <Icon type="file" className="w-5 h-5 text-white/90 group-hover:text-white" />
+                             <span>Khám phá</span>
+                             {results.length > 0 && <span className="bg-white text-brand-600 text-xs font-extrabold px-2 py-0.5 rounded-full ml-1">{results.length}</span>}
+                        </button>
                     </div>
                     <div className="md:hidden flex items-center">
                         <button onClick={() => setMobileMenuOpen(!mobileMenuOpen)} className="text-gray-600 hover:text-gray-900 focus:outline-none">
@@ -237,10 +264,9 @@ const App: React.FC = () => {
                 <div className="md:hidden bg-white border-t border-gray-100 p-4 space-y-2 shadow-lg">
                     <a href="#tools" className="block px-3 py-2 rounded-md text-base font-medium text-gray-700 hover:text-brand-600 hover:bg-gray-50" onClick={() => setMobileMenuOpen(false)}>Công cụ</a>
                     <div className="border-t border-gray-100 my-2"></div>
-                    <button className="block w-full text-left px-3 py-2 rounded-md text-base font-medium text-gray-900 hover:bg-gray-50">Đăng nhập</button>
-                    <a href="#tools" className="block w-full text-center px-3 py-3 mt-2 rounded-lg text-base font-medium bg-brand-600 text-white" onClick={() => setMobileMenuOpen(false)}>
-                        Dùng ngay
-                    </a>
+                    <button onClick={() => { setView('result'); setMobileMenuOpen(false); }} className="block w-full text-left px-3 py-2 rounded-md text-base font-bold text-brand-600 hover:bg-brand-50 flex items-center gap-2">
+                        <Icon type="file" className="w-5 h-5" /> Khám phá ({results.length})
+                    </button>
                 </div>
             )}
         </nav>
@@ -258,7 +284,11 @@ const App: React.FC = () => {
                         <span className={`text-${activeTool.color}-600`}>{activeTool.name}</span>
                     </div>
                 )}
-                <button onClick={() => setView('result')} className="text-gray-600 hover:text-gray-900 font-medium text-sm">Lịch sử ({results.length})</button>
+                <button onClick={() => setView('result')} className="flex items-center gap-2 bg-brand-50 text-brand-700 hover:bg-brand-100 px-4 py-2 rounded-lg font-bold transition-all border border-brand-200 shadow-sm">
+                    <Icon type="file" className="w-4 h-4" />
+                    <span>Khám phá</span>
+                    {results.length > 0 && <span className="bg-brand-600 text-white text-xs px-1.5 py-0.5 rounded-full">{results.length}</span>}
+                </button>
             </div>
         </header>
     );
@@ -405,15 +435,12 @@ const App: React.FC = () => {
                                     <div className="w-full md:w-1/2 mb-10 md:mb-0">
                                         <h2 className="text-3xl md:text-4xl font-bold mb-4">Làm việc mọi lúc, mọi nơi</h2>
                                         <p className="text-brand-100 text-lg mb-8 max-w-lg">
-                                            Tải ứng dụng PDF Pro cho thiết bị di động để quét, chỉnh sửa và gửi tài liệu ngay cả khi bạn đang di chuyển.
+                                            Sử dụng PDF Pro trên mọi thiết bị di động để quét, chỉnh sửa và gửi tài liệu ngay cả khi bạn đang di chuyển.
                                         </p>
                                         <div className="flex flex-col sm:flex-row gap-4">
-                                            <button className="flex items-center justify-center bg-white text-gray-900 px-6 py-3 rounded-xl hover:bg-gray-100 transition">
-                                                <div className="text-left font-bold">Google Play</div>
-                                            </button>
-                                            <button className="flex items-center justify-center bg-transparent border border-gray-500 text-white px-6 py-3 rounded-xl hover:bg-gray-800 transition">
-                                                <div className="text-left font-bold">App Store</div>
-                                            </button>
+                                            <a href="#tools" className="inline-block px-8 py-3 bg-white text-brand-900 font-bold text-lg rounded-xl hover:bg-gray-100 shadow-lg transition hover:-translate-y-1">
+                                                Dùng ngay
+                                            </a>
                                         </div>
                                     </div>
                                     <div className="w-full md:w-1/3 flex justify-center">
@@ -428,23 +455,51 @@ const App: React.FC = () => {
                         {/* PRICING */}
                         <section id="pricing" className="py-20 bg-white">
                             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-                                <div className="text-center mb-16">
-                                    <h2 className="text-3xl font-bold text-gray-900">Gói cước phù hợp</h2>
-                                    <p className="mt-4 text-gray-600">Lựa chọn giải pháp tốt nhất để tối ưu hóa công việc.</p>
-                                </div>
-                                <div className="max-w-4xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-8">
-                                    <div className="bg-white rounded-2xl border border-gray-200 p-8 shadow-soft hover:shadow-xl transition">
-                                        <h3 className="text-xl font-bold text-gray-900">Gói Pro</h3>
-                                        <div className="mt-4 flex items-baseline"><span className="text-4xl font-extrabold text-gray-900">200k</span><span className="ml-1 text-gray-500">/tháng</span></div>
-                                        <p className="mt-4 text-gray-500 text-sm">Dành cho cá nhân muốn làm việc hiệu quả hơn.</p>
-                                        <button className="mt-8 block w-full bg-gray-100 hover:bg-gray-200 text-gray-900 font-bold py-3 px-4 rounded-xl transition">Bắt đầu dùng thử</button>
-                                    </div>
-                                    <div className="bg-brand-600 rounded-2xl border border-brand-500 p-8 shadow-xl transform scale-105 relative z-10 text-white">
-                                        <div className="absolute top-0 right-0 bg-yellow-400 text-yellow-900 text-xs font-bold px-3 py-1 rounded-bl-lg">PHỔ BIẾN NHẤT</div>
-                                        <h3 className="text-xl font-bold text-white">Gói Nhóm</h3>
-                                        <div className="mt-4 flex items-baseline"><span className="text-4xl font-extrabold text-white">150k</span><span className="ml-1 text-brand-200">/người/tháng</span></div>
-                                        <p className="mt-4 text-brand-100 text-sm">Dành cho các đội nhóm nhỏ và doanh nghiệp.</p>
-                                        <button className="mt-8 block w-full bg-white text-brand-600 font-bold py-3 px-4 rounded-xl transition shadow-lg">Liên hệ ngay</button>
+                                <div className="relative rounded-3xl bg-gradient-to-br from-brand-600 to-indigo-700 p-8 md:p-16 text-white overflow-hidden shadow-2xl">
+                                    {/* Decorative elements */}
+                                    <div className="absolute top-0 right-0 -mt-20 -mr-20 w-80 h-80 bg-white/10 rounded-full blur-3xl"></div>
+                                    <div className="absolute bottom-0 left-0 -mb-20 -ml-20 w-80 h-80 bg-purple-500/20 rounded-full blur-3xl"></div>
+
+                                    <div className="relative z-10 flex flex-col md:flex-row items-center gap-12">
+                                        <div className="flex-1 text-center md:text-left">
+                                            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/10 border border-white/20 text-sm font-medium mb-6 backdrop-blur-sm">
+                                                <span className="w-2 h-2 rounded-full bg-green-400"></span>
+                                                Dự án cộng đồng
+                                            </div>
+                                            <h2 className="text-3xl md:text-5xl font-bold mb-6 leading-tight">
+                                                Công cụ mạnh mẽ,<br/> Chi phí <span className="text-yellow-300">0 đồng</span>
+                                            </h2>
+                                            <p className="text-lg text-blue-50 mb-6 leading-relaxed">
+                                                Toàn bộ tính năng cao cấp trên nền tảng này được cung cấp hoàn toàn miễn phí. 
+                                                Đây là dự án tâm huyết được thiết kế bởi <strong className="text-white">Kim Tiểu Kê (UI Designer)</strong> nhằm hỗ trợ cộng đồng xử lý công việc hiệu quả hơn.
+                                            </p>
+                                            
+                                            <div className="flex items-start gap-4 p-4 bg-white/10 rounded-xl border border-white/10 mb-8 backdrop-blur-sm">
+                                                <div className="p-2 bg-white/20 rounded-lg shrink-0">
+                                                    <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6 text-yellow-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                                        <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                                                    </svg>
+                                                </div>
+                                                <div className="text-sm text-blue-100 text-left">
+                                                    <span className="font-semibold text-white block mb-1">Powered by AI</span>
+                                                    Hệ thống được xây dựng và tối ưu mã nguồn bởi <strong className="text-white">Google AI Studio</strong>, mang đến trải nghiệm xử lý PDF thông minh, nhanh chóng và bảo mật.
+                                                </div>
+                                            </div>
+
+                                            <a href="#tools" className="inline-flex items-center justify-center px-8 py-4 text-base font-bold text-brand-700 bg-white rounded-xl hover:bg-brand-50 transition-all transform hover:-translate-y-1 shadow-lg">
+                                                Bắt đầu ngay - Miễn phí mãi mãi
+                                            </a>
+                                        </div>
+                                        
+                                        {/* Visual Side */}
+                                        <div className="hidden md:flex w-1/3 justify-center items-center relative">
+                                             <div className="w-64 h-64 bg-gradient-to-tr from-white/20 to-transparent rounded-full border border-white/20 flex items-center justify-center backdrop-blur-md relative">
+                                                <div className="absolute inset-0 rounded-full border border-white/10 animate-[spin_10s_linear_infinite]"></div>
+                                                <div className="w-2/3 h-2/3 bg-white/20 rounded-full flex items-center justify-center shadow-inner relative z-10">
+                                                    <Icon type="logo" className="w-24 h-24 text-white drop-shadow-lg" />
+                                                </div>
+                                             </div>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
@@ -544,33 +599,143 @@ const App: React.FC = () => {
                     </div>
                 )}
 
-                {view === 'result' && (
-                    <div className="flex-1 bg-gray-50 p-8 overflow-y-auto">
-                        <div className="max-w-4xl mx-auto">
-                            <div className="flex items-center justify-between mb-8">
-                                <h2 className="text-2xl font-bold text-gray-900">Tệp đã xử lý</h2>
-                                <button onClick={() => setView('home')} className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 font-medium">Quay lại trang chủ</button>
+                {view === 'success' && currentResult && (
+                    <div className="flex-1 bg-gray-50 flex flex-col items-center justify-center p-4">
+                        <div className="bg-white rounded-2xl shadow-xl p-8 max-w-md w-full text-center border border-gray-100">
+                            <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6">
+                                <Icon type="check" className="w-10 h-10 text-green-600" />
                             </div>
-                            <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+                            <h2 className="text-2xl font-bold text-gray-900 mb-2">Thành công!</h2>
+                            <p className="text-gray-600 mb-6">Tệp <span className="font-semibold text-gray-800">{currentResult.name}</span> đã được xử lý.</p>
+                            
+                            <div className="space-y-3">
+                                <a 
+                                    href={URL.createObjectURL(currentResult.blob)} 
+                                    download={currentResult.name}
+                                    className="block w-full py-3 px-4 bg-brand-600 hover:bg-brand-700 text-white font-bold rounded-xl shadow-lg shadow-brand-500/30 transition-all transform hover:-translate-y-1 flex items-center justify-center gap-2"
+                                >
+                                    <Icon type="download" className="w-5 h-5" /> Tải xuống ngay
+                                </a>
+                                
+                                <div className="grid grid-cols-2 gap-3">
+                                     <button 
+                                        onClick={() => handleContinueResult(currentResult)}
+                                        className="py-3 px-4 bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold rounded-xl transition"
+                                    >
+                                        Xử lý tiếp
+                                    </button>
+                                    <button 
+                                        onClick={() => {
+                                            setView('home');
+                                            setFiles([]);
+                                            setPdfDoc(null);
+                                            setActiveTool(null);
+                                        }}
+                                        className="py-3 px-4 bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 font-semibold rounded-xl transition"
+                                    >
+                                        Làm mới
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {view === 'result' && (
+                    <div className="flex-1 bg-gray-50 p-6 md:p-10 overflow-y-auto">
+                        <div className="max-w-6xl mx-auto">
+                            <div className="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4">
+                                <div>
+                                    <h2 className="text-3xl font-bold text-gray-900">Tệp lưu trữ</h2>
+                                    <p className="text-gray-500 mt-1">Quản lý các tệp đã xử lý của bạn</p>
+                                </div>
+                                <div className="flex gap-3">
+                                    <button onClick={() => setView('home')} className="px-5 py-2.5 bg-blue-600 text-white rounded-xl hover:bg-blue-700 font-bold shadow-lg shadow-blue-500/30 transition flex items-center gap-2">
+                                        <Icon type="upload" className="w-5 h-5" /> Thêm tệp mới
+                                    </button>
+                                </div>
+                            </div>
+                            
+                            <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
                                 {results.length === 0 ? (
-                                    <div className="p-12 text-center text-gray-500">Chưa có tệp nào được xử lý.</div>
+                                    <div className="p-16 text-center flex flex-col items-center">
+                                        <div className="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center mb-6 text-gray-400">
+                                            <Icon type="file" className="w-10 h-10" />
+                                        </div>
+                                        <h3 className="text-xl font-bold text-gray-900">Chưa có tệp nào</h3>
+                                        <p className="text-gray-500 mt-2 mb-8">Hãy xử lý tệp PDF đầu tiên của bạn để thấy nó ở đây.</p>
+                                        <button onClick={() => setView('home')} className="px-6 py-3 bg-gray-100 text-gray-700 rounded-xl hover:bg-gray-200 font-semibold transition">
+                                            Quay lại trang chủ
+                                        </button>
+                                    </div>
                                 ) : (
-                                    <ul className="divide-y divide-gray-100">
-                                        {results.map(f => (
-                                            <li key={f.id} className="p-6 flex items-center justify-between hover:bg-gray-50">
-                                                <div className="flex items-center gap-4">
-                                                    <div className="p-3 bg-green-100 text-green-600 rounded-lg"><Icon type="file" /></div>
-                                                    <div>
-                                                        <p className="font-semibold text-gray-900">{f.name}</p>
-                                                        <p className="text-sm text-gray-500">{f.operation} • {f.timestamp.toLocaleTimeString()}</p>
-                                                    </div>
-                                                </div>
-                                                <a href={URL.createObjectURL(f.blob)} download={f.name} className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors shadow-sm font-medium">
-                                                    <Icon type="download" className="w-4 h-4" /> Tải xuống
-                                                </a>
-                                            </li>
-                                        ))}
-                                    </ul>
+                                    <div className="overflow-x-auto">
+                                        <table className="w-full text-left border-collapse">
+                                            <thead>
+                                                <tr className="bg-gray-50 text-gray-600 text-sm uppercase tracking-wider border-b border-gray-200">
+                                                    <th className="p-5 font-semibold">Tên tệp</th>
+                                                    <th className="p-5 font-semibold hidden md:table-cell">Hoạt động</th>
+                                                    <th className="p-5 font-semibold hidden sm:table-cell">Thời gian</th>
+                                                    <th className="p-5 font-semibold text-right">Hành động</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody className="divide-y divide-gray-100">
+                                                {results.map(f => (
+                                                    <tr key={f.id} className="hover:bg-gray-50 transition group">
+                                                        <td className="p-5">
+                                                            <div className="flex items-center gap-4">
+                                                                <div className="w-10 h-10 rounded-lg bg-red-50 text-red-600 flex items-center justify-center flex-shrink-0">
+                                                                    <Icon type="file" />
+                                                                </div>
+                                                                <span className="font-medium text-gray-900 break-all line-clamp-2">{f.name}</span>
+                                                            </div>
+                                                        </td>
+                                                        <td className="p-5 hidden md:table-cell">
+                                                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                                                                {f.operation}
+                                                            </span>
+                                                        </td>
+                                                        <td className="p-5 text-gray-500 text-sm hidden sm:table-cell">
+                                                            {f.timestamp.toLocaleString()}
+                                                        </td>
+                                                        <td className="p-5">
+                                                            <div className="flex justify-end items-center gap-2">
+                                                                <button 
+                                                                    onClick={() => handleContinueResult(f)}
+                                                                    title="Chỉnh sửa tiếp"
+                                                                    className="p-2 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition"
+                                                                >
+                                                                    <Icon type="rotate" className="w-5 h-5" />
+                                                                </button>
+                                                                <button 
+                                                                    onClick={() => handleRenameResult(f.id, f.name)}
+                                                                    title="Đổi tên"
+                                                                    className="p-2 text-gray-500 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition"
+                                                                >
+                                                                    <Icon type="file" className="w-5 h-5" /> {/* Using file icon as proxy for edit name */}
+                                                                </button>
+                                                                <a 
+                                                                    href={URL.createObjectURL(f.blob)} 
+                                                                    download={f.name}
+                                                                    title="Tải xuống"
+                                                                    className="p-2 text-gray-500 hover:text-green-600 hover:bg-green-50 rounded-lg transition"
+                                                                >
+                                                                    <Icon type="download" className="w-5 h-5" />
+                                                                </a>
+                                                                <button 
+                                                                    onClick={() => handleDeleteResult(f.id)}
+                                                                    title="Xóa"
+                                                                    className="p-2 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition"
+                                                                >
+                                                                    <Icon type="trash" className="w-5 h-5" />
+                                                                </button>
+                                                            </div>
+                                                        </td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    </div>
                                 )}
                             </div>
                         </div>

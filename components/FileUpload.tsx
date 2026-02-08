@@ -16,7 +16,7 @@ export const FileUpload: React.FC<FileUploadProps> = ({ onFileChange, multiple =
         e.preventDefault();
         setIsDragOver(false);
         if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-            const pdfFiles = Array.from(e.dataTransfer.files).filter(f => f.type === 'application/pdf');
+            const pdfFiles = (Array.from(e.dataTransfer.files) as File[]).filter(f => f.type === 'application/pdf');
             if (pdfFiles.length > 0) onFileChange(pdfFiles);
             else alert("Vui lòng chỉ thả tệp PDF.");
         }
